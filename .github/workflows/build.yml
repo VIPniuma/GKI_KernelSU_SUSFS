@@ -594,6 +594,15 @@ jobs:
               echo "添加 KernelSU 官方版..."
               curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash $BRANCH
 
+              echo 'pin KSU to 08a3b087e492 (SUSFS 2026-09-26 compat)'
+              cd KernelSU
+              git fetch --unshallow origin 2>/dev/null || true
+              git fetch origin 08a3b087e492 2>/dev/null || true
+              git checkout -q 08a3b087e492 || exit 1
+              git log -1 --format='%H %ad' --date=short
+              cd ..
+
+
               cd KernelSU
               KSU_GIT_VERSION=$(git rev-list --count HEAD)
               KSU_VERSION=$((20000 + KSU_GIT_VERSION))
