@@ -886,6 +886,35 @@ jobs:
             echo "SUSFS_PATCH_EXPORT=false" >> $GITHUB_ENV
           fi
 
+      # KSU 9/24 提交 + SUSFS 2026-09-26 组合：drivers/kernelsu/feature/selinux_hide.c 中
+      # `if (security_dump_masked_av_fn)` / `if (context_struct_compute_av_fn)` 触发
+      # clang -Wpointer-bool-conversion，GKI 开 -Werror 直接编译失败。
+      # 该判断原本恒真，关闭告警不改变运行时行为。
+      # 必须放在「生成 SUSFS 集成补丁」之后，避免这几行改动被计入 susfs.patch。
+      - name: 修复 KSU -Wpointer-bool-conversion 编译错误
+        if: inputs.ksu_mode != '禁用KSU'
+        working-directory: ${{ env.KERNEL_ROOT }}/common
+        run: |
+          KSU_DIR=drivers/kernelsu
+          if [ ! -d "$KSU_DIR" ]; then
+            echo "::warning::未找到 $KSU_DIR，跳过"
+            exit 0
+          fi
+
+          if [ -f "$KSU_DIR/feature/selinux_hide.c" ]; then
+            if ! grep -q 'Wpointer-bool-conversion' "$KSU_DIR/feature/selinux_hide.c"; then
+              sed -i '1i #pragma clang diagnostic ignored "-Wpointer-bool-conversion"' \
+                "$KSU_DIR/feature/selinux_hide.c"
+            fi
+            echo "selinux_hide.c 已插入 pragma，首行: $(head -1 "$KSU_DIR/feature/selinux_hide.c")"
+          fi
+
+          if ! grep -q 'Wno-pointer-bool-conversion' "$KSU_DIR/Makefile"; then
+            echo 'subdir-ccflags-y += -Wno-pointer-bool-conversion' >> "$KSU_DIR/Makefile"
+          fi
+          echo "已关闭 -Wpointer-bool-conversion（对 $KSU_DIR 及其子目录生效）"
+          tail -3 "$KSU_DIR/Makefile"
+
       - name: 克隆 Droidspaces 补丁仓库
         if: inputs.droidspaces != 'off'
         run: |
